@@ -14,12 +14,26 @@ import keyboard
 from rich.table import Table
 from rich.console import Console
 from clubhouse.clubhouse import Clubhouse
+import requests
+
+current_channel_users = []
 
 # Set some global variables
 try:
     import agorartc
+
+    class EventHandler(agorartc.RtcEngineEventHandlerBase):
+        def onActiveSpeaker(self, uid):
+            try:
+                active_user = [user for user in current_channel_users if user["user_id"] == uid][0]
+                print(active_user)
+                r = requests.post(f"http://127.0.0.1:1113/active_speaker", json=active_user)
+                super().onActiveSpeaker(uid)
+            except:
+                print(sys.exc_info()[0])
+
     RTC = agorartc.createRtcEngineBridge()
-    eventHandler = agorartc.RtcEngineEventHandlerBase()
+    eventHandler = EventHandler()
     RTC.initEventHandler(eventHandler)
     # 0xFFFFFFFE will exclude Chinese servers from Agora's servers.
     RTC.initialize(Clubhouse.AGORA_KEY, None, agorartc.AREA_CODE_GLOB & 0xFFFFFFFE)
@@ -233,6 +247,8 @@ def chat_main(client):
         table.add_column("is_speaker")
         table.add_column("is_moderator")
         users = channel_info['users']
+        global current_channel_users
+        current_channel_users = users
         i = 0
         for user in users:
             i += 1
@@ -257,7 +273,8 @@ def chat_main(client):
         else:
             print("[!] Agora SDK is not installed.")
             print("    You may not speak or listen to the conversation.")
-
+        RTC.startAudioRecording("/tmp/mysocket.aac", 32, 2)
+        RTC.enableAudioVolumeIndication(200, 3, False)
         # Activate pinging
         client.active_ping(channel_name)
         _ping_func = _ping_keep_alive(client, channel_name)
